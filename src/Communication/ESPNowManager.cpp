@@ -1,4 +1,5 @@
 #include "ESPNowManager.h"
+#include <Arduino.h>
 
 void ESPNowManager::begin() {
     WiFi.mode(WIFI_STA);
@@ -25,7 +26,13 @@ bool ESPNowManager::sendData(const ControlData& data) {
     esp_err_t result = esp_now_send(receiverMac, (uint8_t*)&data, sizeof(data));
     lastSendTime = millis();
     
-    return result == ESP_OK;
+    if (result != ESP_OK) {
+        Serial.print("❌ Ошибка отправки: ");
+        Serial.println(result);
+        return false;
+    }
+    
+    return true;
 }
 
 void ESPNowManager::onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
@@ -33,6 +40,9 @@ void ESPNowManager::onDataSent(const uint8_t* mac, esp_now_send_status_t status)
         digitalWrite(2, HIGH);
         delay(10);
         digitalWrite(2, LOW);
+    } else {
+        Serial.print("❌ Ошибка доставки: ");
+        Serial.println(status);
     }
 }
 
@@ -42,15 +52,24 @@ bool ESPNowManager::addPeer(const uint8_t* mac) {
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
     
-    return esp_now_add_peer(&peerInfo) == ESP_OK;
-}
-
-void ESPNowManager::pairWithReceiver() {
-    // Режим спаривания - будем ждать широковещательный пакет от приемника
-    Serial.println("🔍 Режим спаривания...");
-    // Здесь можно добавить логику автоматического спаривания
+    esp_err_t result = esp_now_add_peer(&peerInfo);
+    if (result == ESP_OK) {
+        memcpy(receiverMac, mac, 6);
+        paired = true;
+        Serial.println("✅ Пиар успешно добавлен");
+        return true;
+    } else {
+        Serial.print("❌ Ошибка добавления пиара: ");
+        Serial.println(result);
+        return false;
+    }
 }
 
 bool ESPNowManager::isConnected() {
     return paired;
+}
+
+void ESPNowManager::pairWithReceiver() {
+    // Режим спаривания можно реализовать позже
+    Serial.println("🔍 Режим спаривания...");
 }

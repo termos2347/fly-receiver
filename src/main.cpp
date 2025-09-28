@@ -1,4 +1,3 @@
-// передатчик
 #include "Core/Types.h"
 #include "Input/Joystick.h"
 #include "Communication/ESPNowManager.h"
@@ -6,7 +5,7 @@
 Joystick joystick;
 ESPNowManager espNow;
 
-// MAC адрес приемника (будет установлен после спаривания)
+// MAC адрес приемника
 uint8_t receiverMac[] = {0x14, 0x2B, 0x2F, 0xC9, 0x46, 0x88};
 
 void printDeviceInfo() {
@@ -36,32 +35,19 @@ void setup() {
   joystick.begin();
   espNow.begin();
   
-  // Временное решение: ручная установка MAC приемника
-  // В реальной системе здесь будет режим спаривания
-  Serial.println("⏳ Ожидание ввода MAC приемника...");
-  Serial.println("📝 Формат: 14:2B:2F:C9:46:88");
+  // Добавляем приемник как пиар
+  Serial.println("⏳ Добавление приемника...");
   
-  // Здесь можно добавить логику ввода MAC через Serial
-  // Пока используем заглушку - нужно заменить на реальный MAC
-  if (receiverMac[0] == 0x00) {
-    Serial.println("❌ MAC приемника не установлен!");
-    Serial.println("⚠️  Замените receiverMac в коде на реальный MAC");
-  } else {
-    esp_now_peer_info_t peerInfo = {};
-    memcpy(peerInfo.peer_addr, receiverMac, 6);
-    peerInfo.channel = 0;
-    peerInfo.encrypt = false;
-    
-    if (esp_now_add_peer(&peerInfo) == ESP_OK) {
-      Serial.print("✅ Приемник добавлен: ");
-      for(int i = 0; i < 6; i++) {
-        Serial.print(receiverMac[i], HEX);
-        if(i < 5) Serial.print(":");
-      }
-      Serial.println();
-    } else {
-      Serial.println("❌ Ошибка добавления приемника");
+  if (espNow.addPeer(receiverMac)) {
+    Serial.print("✅ Приемник добавлен: ");
+    for(int i = 0; i < 6; i++) {
+      Serial.print(receiverMac[i], HEX);
+      if(i < 5) Serial.print(":");
     }
+    Serial.println();
+  } else {
+    Serial.println("❌ Не удалось добавить приемник");
+    Serial.println("⚠️  Проверьте MAC-адрес и перезагрузите устройство");
   }
   
   // Индикация готовности
@@ -74,6 +60,11 @@ void setup() {
   }
   
   Serial.println("🚀 Передатчик готов к работе");
+  if (espNow.isConnected()) {
+    Serial.println("📡 Связь с приемником установлена");
+  } else {
+    Serial.println("⚠️  Связь с приемником НЕ установлена");
+  }
   Serial.println("📊 Ожидание данных джойстика...");
 }
 
