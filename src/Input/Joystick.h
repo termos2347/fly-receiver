@@ -15,10 +15,15 @@ public:
 private:
     HardwareConfig config;
     ControlData currentData;
-    int xCenter = 2048;
-    int yCenter = 2048;
+    
+    // Центральные положения для двух джойстиков
+    int x1Center = 2048;
+    int y1Center = 2048;
+    int x2Center = 2048;
+    int y2Center = 2048;
+    
     bool calibrated = false;
     
     int readFilteredAnalog(uint8_t pin);
-    // Убрали calculateCRC из приватных методов
+    void readButtons();
 };

@@ -27,7 +27,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  Serial.println("🎮 Запуск передатчика...");
+  Serial.println("🎮 Запуск передатчика с двумя джойстиками...");
   
   // Вывод информации об устройстве
   printDeviceInfo();
@@ -65,7 +65,7 @@ void setup() {
   } else {
     Serial.println("⚠️  Связь с приемником НЕ установлена");
   }
-  Serial.println("📊 Ожидание данных джойстика...");
+  Serial.println("📊 Ожидание данных джойстиков...");
 }
 
 void loop() {
@@ -84,8 +84,15 @@ void loop() {
   // Вывод отладочной информации каждые 500 мс
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 500) {
-    Serial.printf("📤 X: %4d, Y: %4d, BTN: %d, CRC: %04X\n", 
-                 data.xAxis, data.yAxis, data.buttonPressed, data.crc);
+    Serial.printf("🎮 Джойстик1: X=%-4d Y=%-4d %s\n", 
+                data.xAxis1, data.yAxis1, 
+                data.button1 ? "[BTN1]" : "      ");
+    Serial.printf("🎮 Джойстик2: X=%-4d Y=%-4d %s\n", 
+                data.xAxis2, data.yAxis2,
+                data.button2 ? "[BTN2]" : "      ");
+    Serial.printf("🔄 Доп.кнопки: 0x%02X CRC: %04X\n", 
+                data.buttons, data.crc);
+    Serial.println("---");
     lastPrint = millis();
   }
   
