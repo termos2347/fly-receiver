@@ -1,15 +1,33 @@
+// ПУЛЬТ УПРАВЛЕНИЯ (передатчик)
+#include <esp_now.h>
+#include <WiFi.h>
 #include "Core/Types.h"
 #include "Input/Joystick.h"
-#include "Communication/ESPNowManager.h"
 
 Joystick joystick;
-ESPNowManager espNow;
 
-// MAC адрес приемника
-uint8_t receiverMac[] = {0x14, 0x2B, 0x2F, 0xC9, 0x46, 0x88};
+// MAC адрес самолета (приемника)
+uint8_t receiverMac[] = {0xEC, 0xE3, 0x34, 0x1A, 0xB1, 0xA8};
+
+// Функция для добавления пира в ESP-NOW
+bool addPeer(const uint8_t* macAddress) {
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, macAddress, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    
+    esp_err_t result = esp_now_add_peer(&peerInfo);
+    if (result == ESP_OK) {
+        Serial.println("✅ Пир успешно добавлен");
+        return true;
+    } else {
+        Serial.printf("❌ Ошибка добавления пира: %d\n", result);
+        return false;
+    }
+}
 
 void printDeviceInfo() {
-  Serial.println("🎮 ===== ИНФОРМАЦИЯ ПЕРЕДАТЧИКА =====");
+  Serial.println("🎮 ===== ИНФОРМАЦИЯ ПУЛЬТА =====");
   Serial.print("MAC адрес: ");
   Serial.println(WiFi.macAddress());
   Serial.print("Chip ID: 0x");
@@ -20,34 +38,46 @@ void printDeviceInfo() {
   Serial.print("Flash размер: ");
   Serial.print(ESP.getFlashChipSize() / (1024 * 1024));
   Serial.println(" MB");
-  Serial.println("=====================================");
+  Serial.print("Свободная память: ");
+  Serial.print(ESP.getFreeHeap() / 1024);
+  Serial.println(" KB");
+  Serial.println("================================");
 }
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  Serial.println("🎮 Запуск передатчика с двумя джойстиками...");
+  Serial.println("🎮 Запуск пульта управления...");
   
   // Вывод информации об устройстве
   printDeviceInfo();
   
+  // Инициализация компонентов
+  Serial.println("🔧 Инициализация компонентов...");
   joystick.begin();
-  espNow.begin();
   
-  // Добавляем приемник как пиар
-  Serial.println("⏳ Добавление приемника...");
+  // Инициализация ESP-NOW в режиме передатчика
+  Serial.println("📡 Инициализация ESP-NOW...");
+  WiFi.mode(WIFI_STA);
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("❌ Ошибка инициализации ESP-NOW");
+    return;
+  }
   
-  if (espNow.addPeer(receiverMac)) {
-    Serial.print("✅ Приемник добавлен: ");
+  // Добавляем самолет как пир
+  Serial.println("⏳ Добавление самолета...");
+  
+  if (addPeer(receiverMac)) {
+    Serial.print("✅ Самолет добавлен: ");
     for(int i = 0; i < 6; i++) {
       Serial.print(receiverMac[i], HEX);
       if(i < 5) Serial.print(":");
     }
     Serial.println();
   } else {
-    Serial.println("❌ Не удалось добавить приемник");
-    Serial.println("⚠️  Проверьте MAC-адрес и перезагрузите устройство");
+    Serial.println("❌ Не удалось добавить самолет");
+    return;
   }
   
   // Индикация готовности
@@ -59,16 +89,12 @@ void setup() {
     delay(100);
   }
   
-  Serial.println("🚀 Передатчик готов к работе");
-  if (espNow.isConnected()) {
-    Serial.println("📡 Связь с приемником установлена");
-  } else {
-    Serial.println("⚠️  Связь с приемником НЕ установлена");
-  }
-  Serial.println("📊 Ожидание данных джойстиков...");
+  Serial.println("🚀 Пульт готов к работе");
+  Serial.println("📡 Ожидание данных джойстиков...");
 }
 
 void loop() {
+  // Обновляем данные джойстиков
   joystick.update();
   ControlData data = joystick.getData();
   
@@ -76,8 +102,17 @@ void loop() {
   static uint16_t lastCRC = 0;
   uint16_t currentCRC = joystick.calculateCRC(data);
   
+  // Отправляем данные, если они изменились
   if (currentCRC == data.crc && currentCRC != lastCRC) {
-    espNow.sendData(data);
+    esp_err_t result = esp_now_send(receiverMac, (uint8_t *)&data, sizeof(data));
+    if (result == ESP_OK) {
+      // Быстрая индикация успешной отправки
+      digitalWrite(2, HIGH);
+      delay(5);
+      digitalWrite(2, LOW);
+    } else {
+      Serial.printf("⚠️  Ошибка отправки данных: %d\n", result);
+    }
     lastCRC = currentCRC;
   }
   
@@ -92,11 +127,18 @@ void loop() {
                 data.button2 ? "[BTN2]" : "      ");
     Serial.printf("🔄 Доп.кнопки: 0x%02X CRC: %04X\n", 
                 data.buttons, data.crc);
+    
+    // Статус соединения (проверяем наличие пира)
+    if (esp_now_is_peer_exist(receiverMac)) {
+      Serial.println("📡 Связь: ОК");
+    } else {
+      Serial.println("❌ Связь: НЕТ");
+    }
     Serial.println("---");
     lastPrint = millis();
   }
   
-  // Индикация работы (медленное мигание)
+  // Медленное мигание в режиме работы
   static unsigned long lastBlink = 0;
   if (millis() - lastBlink > 1000) {
     digitalWrite(2, !digitalRead(2));
